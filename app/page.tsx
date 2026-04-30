@@ -330,8 +330,8 @@ export default function Home() {
             selectedPackageData={selectedPackageData}
             selectedServiceData={selectedServiceData}
             cyclesSelected={cyclesSelected}
-            customerData={userPayload}
-            bookingData={bookingPayload}
+            // customerData={userPayload}
+            // bookingData={bookingPayload}
           />
 
           <div className="w-full mt-6">
