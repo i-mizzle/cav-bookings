@@ -78,6 +78,29 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
 
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<number | null>(null)
 
+  const isSameDay = (first: Date, second: Date) => {
+    return (
+      first.getFullYear() === second.getFullYear() &&
+      first.getMonth() === second.getMonth() &&
+      first.getDate() === second.getDate()
+    );
+  };
+
+  const isSlotPast = (slotValue: string) => {
+    if (!activeDate) return false;
+
+    const now = new Date();
+    if (!isSameDay(activeDate, now)) return false;
+
+    const [startTime] = slotValue.split("-");
+    const [startHour, startMinute] = startTime.split(":").map(Number);
+
+    const slotStart = new Date(activeDate);
+    slotStart.setHours(startHour, startMinute, 0, 0);
+
+    return now > slotStart;
+  };
+
   const timeSlots = [
     {
       label: "09:00 AM to 10:00 AM",
@@ -209,14 +232,30 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
         <div className="w-full">
           <p className="text-sm font-sans">Select a timeslot for your booking on {moment(activeDate).format('dddd, LL')}</p>
 
-          {timeSlots.map((slot, slotIndex) => (
-            <button onClick={()=>{setSelectedTimeSlot(slotIndex)}} key={slotIndex} className={`w-full flex items-center justify-between transition duration-200 my-3 p-4 rounded-lg text-xs font-mono font-semibold border-2 bg-cav-medium-gray/30 text-left ${selectedTimeSlot === slotIndex ? 'border-cav-gold text-cav-gold' : 'border-cav-medium-gray text-cav-light-gray'}`}>
-              {slot.label } 
-              <span className={`w-4 h-4 transition-all duration-200 rounded-full bg-cav-gold flex items-center justify-center shadow-lg shadow-black ${selectedTimeSlot === slotIndex ? 'opacity-100' : 'opacity-0'}`}>
-                <CheckIcon className="w-3 h-3 text-cav-black" />
-              </span>
-            </button>
-          ))}
+          {timeSlots.map((slot, slotIndex) => {
+            const slotIsPast = isSlotPast(slot.value);
+
+            return (
+              <button
+                onClick={()=>{setSelectedTimeSlot(slotIndex)}}
+                key={slotIndex}
+                disabled={slotIsPast}
+                className={`w-full flex items-center justify-between transition duration-200 my-3 p-4 rounded-lg text-xs font-mono font-semibold border-2 bg-cav-medium-gray/30 text-left ${selectedTimeSlot === slotIndex ? 'border-cav-gold text-cav-gold' : 'border-cav-medium-gray text-cav-light-gray'} ${slotIsPast ? 'opacity-40 cursor-not-allowed' : ''}`}
+              >
+                <span>{slot.label }</span>
+                <span className="flex items-center gap-2">
+                  {slotIsPast && (
+                    <span className="text-[10px] uppercase tracking-wide text-cav-light-gray">
+                      Unavailable
+                    </span>
+                  )}
+                  <span className={`w-4 h-4 transition-all duration-200 rounded-full bg-cav-gold flex items-center justify-center shadow-lg shadow-black ${selectedTimeSlot === slotIndex ? 'opacity-100' : 'opacity-0'}`}>
+                    <CheckIcon className="w-3 h-3 text-cav-black" />
+                  </span>
+                </span>
+              </button>
+            );
+          })}
 
           <button 
             onClick={()=>{
