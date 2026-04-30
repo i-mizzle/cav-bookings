@@ -5,8 +5,33 @@ import ArrowIcon from "@/components/elements/icons/ArrowIcon";
 import BookingCalendar from "@/components/elements/BookingCalendar";
 import CheckIcon from "@/components/elements/icons/CheckIcon";
 import EllipsesVerticalIcon from "@/components/elements/icons/EllipsesVerticalIcon";
+import { getInferredPriceDue } from "@/lib/servicePricing";
 import Image from "next/image";
+import Script from "next/script";
 import { useState } from "react";
+
+type PaystackSuccessTransaction = {
+  reference: string
+  [key: string]: unknown
+}
+
+type PaystackInline = {
+  newTransaction: (options: {
+    key: string
+    email: string
+    amount: number
+    firstname?: string
+    phone?: string
+    onSuccess: (transaction: PaystackSuccessTransaction) => void
+    onCancel?: () => void
+  }) => void
+}
+
+declare global {
+  interface Window {
+    PaystackPop?: new () => PaystackInline
+  }
+}
 
 interface UserPayload {
   name: string
@@ -122,6 +147,14 @@ export default function Home() {
     service: ""
   })
 
+  const formatBookingDate = (date: Date) => {
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, "0")
+    const day = `${date.getDate()}`.padStart(2, "0")
+
+    return `${year}-${month}-${day}`
+  }
+
   const terms = `Policy Guide
 
   1. PAYMENT & BOOKING POLICY
@@ -159,6 +192,10 @@ export default function Home() {
     setSelectedService(serviceIndex)
     setSelectedPackage(null)
     setCyclesSelected(1)
+    setBookingPayload((prev) => ({
+      ...prev,
+      service: services[serviceIndex].name
+    }))
   }
 
   const increaseCycle = () => {
@@ -183,9 +220,46 @@ export default function Home() {
     ? selectedServiceData.packages[selectedPackage]
     : null
 
+  const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? ""
+  const inferredPriceDue = getInferredPriceDue(selectedServiceData, selectedPackageData, cyclesSelected)
+  const canProceedToPayment = Boolean(
+    selectedServiceData && userPayload.emailAddress.trim() && inferredPriceDue > 0,
+  )
+
+  const handlePaymentSuccess = (transaction: PaystackSuccessTransaction) => {
+    void transaction
+  }
+
+  const handleProceedToPayment = () => {
+    if (!selectedServiceData) return
+    if (!userPayload.emailAddress.trim()) return
+    if (inferredPriceDue <= 0) return
+    if (!paystackPublicKey) {
+      console.error("Missing NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY.")
+      return
+    }
+    if (!window.PaystackPop) {
+      console.error("Paystack InlineJS is not available.")
+      return
+    }
+
+    const popup = new window.PaystackPop()
+
+    popup.newTransaction({
+      key: paystackPublicKey,
+      email: userPayload.emailAddress.trim(),
+      amount: inferredPriceDue * 100,
+      firstname: userPayload.name.trim() || undefined,
+      phone: userPayload.phone.trim() || undefined,
+      onSuccess: handlePaymentSuccess,
+      onCancel: () => {},
+    })
+  }
+
     
   return (
     <div className="w-full bg-cav-black p-6 min-h-screen h-inherit relative pb-10">
+      <Script src="https://js.paystack.co/v2/inline.js" strategy="afterInteractive" />
       {/* <div className="w-full h-[2vh]"></div> */}
       <div className="flex items-start gap-x-2 bg-transparent">
         <div className="w-full"></div>
@@ -256,6 +330,8 @@ export default function Home() {
             selectedPackageData={selectedPackageData}
             selectedServiceData={selectedServiceData}
             cyclesSelected={cyclesSelected}
+            customerData={userPayload}
+            bookingData={bookingPayload}
           />
 
           <div className="w-full mt-6">
@@ -265,10 +341,13 @@ export default function Home() {
               inputPlaceholder={"Your Name"} 
               inputType={"text"} 
               hasError={false} 
-              returnFieldValue={function (event: unknown): void {
-                throw new Error("Function not implemented.");
-              } } 
-              preloadValue={""} 
+              returnFieldValue={(value: unknown) => {
+                setUserPayload((prev) => ({
+                  ...prev,
+                  name: String(value)
+                }))
+              }} 
+              preloadValue={userPayload.name} 
               disabled={false} 
             />
           </div>
@@ -279,10 +358,13 @@ export default function Home() {
               inputPlaceholder={"Your active email address"} 
               inputType={"text"} 
               hasError={false} 
-              returnFieldValue={function (event: unknown): void {
-                throw new Error("Function not implemented.");
-              } } 
-              preloadValue={""} 
+              returnFieldValue={(value: unknown) => {
+                setUserPayload((prev) => ({
+                  ...prev,
+                  emailAddress: String(value)
+                }))
+              }} 
+              preloadValue={userPayload.emailAddress} 
               disabled={false} 
             />
           </div>
@@ -293,10 +375,13 @@ export default function Home() {
               inputPlaceholder={"Your active phone number (whatsapp preferred)"} 
               inputType={"text"} 
               hasError={false} 
-              returnFieldValue={function (event: unknown): void {
-                throw new Error("Function not implemented.");
-              } } 
-              preloadValue={""} 
+              returnFieldValue={(value: unknown) => {
+                setUserPayload((prev) => ({
+                  ...prev,
+                  phone: String(value)
+                }))
+              }} 
+              preloadValue={userPayload.phone} 
               disabled={false} 
             />
           </div>
@@ -307,13 +392,33 @@ export default function Home() {
             selectedPackageData={selectedPackageData}
             selectedServiceData={selectedServiceData}
             cyclesSelected={cyclesSelected}
+            // customerData={userPayload}
+            // bookingData={bookingPayload}
           />
           <div className="mt-5">
             <BookingCalendar 
-              returnSelection={(selection)=>{}} />
+              bookingData={bookingPayload}
+              returnSelection={(selection)=>{
+                setBookingPayload((prev) => ({
+                  ...prev,
+                  date: formatBookingDate(selection.date),
+                  timeSlot: selection.time
+                }))
+              }} />
           </div>
         </>}
       </div>
+
+      {activeStep === 2 && <>
+          <SelectedServiceOptions
+            selectedPackageData={selectedPackageData}
+            selectedServiceData={selectedServiceData}
+            cyclesSelected={cyclesSelected}
+            customerData={userPayload}
+            bookingData={bookingPayload}
+          />
+        </>
+      }
 
       <div className="w-full fixed p-4 bg-cav-black left-0 bottom-0 min-h-20 mt-5">
         <div className="flex items-center justify-center w-[40%] gap-x-4 mx-auto my-5">
@@ -331,7 +436,7 @@ export default function Home() {
             <ArrowIcon className="w-5 h-5 rotate-180" />
           </button>
           :
-          <button onClick={()=>{}} className="font-mono transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold px-4 text-xs rounded-full h-10 bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30">
+          <button type="button" onClick={handleProceedToPayment} disabled={!canProceedToPayment} className="font-mono transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold px-4 text-xs rounded-full h-10 bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30 disabled:cursor-not-allowed disabled:bg-cav-gold/50 disabled:text-cav-black/60 disabled:shadow-none">
             Proceed to Payment
             <ArrowIcon className="w-5 h-5 rotate-180" />
           </button>}

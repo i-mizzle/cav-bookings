@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ArrowIcon from "./icons/ArrowIcon";
 import ModalWrapper from "../wrappers/ModalWrapper";
 import moment from "moment";
@@ -11,14 +11,70 @@ interface DateTimeSelection {
   time: string
 }
 
+interface BookingData {
+  date: string
+  timeSlot: string
+}
+
 interface BookingCalendarProps {
-  // closeCalendar: () => void;
   returnSelection: (data: DateTimeSelection) => void;
+  bookingData?: BookingData;
 }
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TIME_SLOTS = [
+  {
+    label: "09:00 AM to 10:00 AM",
+    value: "09:00-10:00"
+  },
+  {
+    label: "10:00 AM to 11:00 AM",
+    value: "10:00-11:00"
+  },
+  {
+    label: "11:00 AM to 12:00 PM",
+    value: "11:00-12:00"
+  },
+  {
+    label: "12:00 PM to 01:00 PM",
+    value: "12:00-13:00"
+  },
+  {
+    label: "01:00 PM to 02:00 PM",
+    value: "13:00-14:00"
+  },
+  {
+    label: "02:00 PM to 03:00 PM",
+    value: "14:00-15:00"
+  },
+  {
+    label: "03:00 PM to 04:00 PM",
+    value: "15:00-16:00"
+  },
+  {
+    label: "04:00 PM to 05:00 PM",
+    value: "16:00-17:00"
+  },
+  {
+    label: "05:00 PM to 06:00 PM",
+    value: "17:00-18:00"
+  }
+];
 
-export default function BookingCalendar({ returnSelection }: BookingCalendarProps) {
+const parseBookingDate = (dateValue?: string) => {
+  if (!dateValue) return null;
+
+  return new Date(`${dateValue}T00:00:00`);
+};
+
+const getTimeSlotIndex = (timeSlotValue?: string) => {
+  if (!timeSlotValue) return null;
+
+  const matchedSlotIndex = TIME_SLOTS.findIndex((slot) => slot.value === timeSlotValue);
+  return matchedSlotIndex >= 0 ? matchedSlotIndex : null;
+};
+
+export default function BookingCalendar({ returnSelection, bookingData }: BookingCalendarProps) {
   const currentMonthStart = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -29,6 +85,9 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
   }, []);
 
   const [visibleMonth, setVisibleMonth] = useState<Date>(currentMonthStart);
+  const [activeDate, setActiveDate] = useState<Date | null>(parseBookingDate(bookingData?.date))
+  const [timeslotSelectionOpen, setTimeslotSelectionOpen] = useState(false)
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<number | null>(getTimeSlotIndex(bookingData?.timeSlot))
 
   const monthLabel = visibleMonth.toLocaleString("en-US", {
     month: "long",
@@ -67,16 +126,29 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
     );
   };
 
-  const [activeDate, setActiveDate] = useState<Date | null>(null)
-  const [timeslotSelectionOpen, setTimeslotSelectionOpen] = useState(false)
+  useEffect(() => {
+    const incomingDate = parseBookingDate(bookingData?.date);
+    const incomingTimeSlot = getTimeSlotIndex(bookingData?.timeSlot);
+
+    setActiveDate(incomingDate);
+    setSelectedTimeSlot(incomingTimeSlot);
+
+    if (incomingDate) {
+      setVisibleMonth(new Date(incomingDate.getFullYear(), incomingDate.getMonth(), 1));
+    }
+  }, [bookingData?.date, bookingData?.timeSlot]);
 
   const handleCalendarDateClick = (date: Date) => {
-    // Placeholder for step 2 date click handling.
     setActiveDate(date)
+    const incomingDate = parseBookingDate(bookingData?.date)
+    const shouldKeepCurrentTimeSlot =
+      incomingDate !== null &&
+      bookingData?.timeSlot &&
+      isSameDay(incomingDate, date)
+
+    setSelectedTimeSlot(shouldKeepCurrentTimeSlot ? getTimeSlotIndex(bookingData?.timeSlot) : null)
     setTimeslotSelectionOpen(true)
   }
-
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<number | null>(null)
 
   const isSameDay = (first: Date, second: Date) => {
     return (
@@ -100,45 +172,6 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
 
     return now > slotStart;
   };
-
-  const timeSlots = [
-    {
-      label: "09:00 AM to 10:00 AM",
-      value: "09:00-10:00"
-    },
-    {
-      label: "10:00 AM to 11:00 AM",
-      value: "10:00-11:00"
-    },
-    {
-      label: "11:00 AM to 12:00 PM",
-      value: "11:00-12:00"
-    },
-    {
-      label: "12:00 PM to 01:00 PM",
-      value: "12:00-13:00"
-    },
-    {
-      label: "01:00 PM to 02:00 PM",
-      value: "13:00-14:00"
-    },
-    {
-      label: "02:00 PM to 03:00 PM",
-      value: "14:00-15:00"
-    },
-    {
-      label: "03:00 PM to 04:00 PM",
-      value: "15:00-16:00"
-    },
-    {
-      label: "04:00 PM to 05:00 PM",
-      value: "16:00-17:00"
-    },
-    {
-      label: "05:00 PM to 06:00 PM",
-      value: "17:00-18:00"
-    }
-  ]
 
   return (
     <>
@@ -232,7 +265,7 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
         <div className="w-full">
           <p className="text-sm font-sans">Select a timeslot for your booking on {moment(activeDate).format('dddd, LL')}</p>
 
-          {timeSlots.map((slot, slotIndex) => {
+          {TIME_SLOTS.map((slot, slotIndex) => {
             const slotIsPast = isSlotPast(slot.value);
 
             return (
@@ -262,7 +295,7 @@ export default function BookingCalendar({ returnSelection }: BookingCalendarProp
               setTimeslotSelectionOpen(false)
               returnSelection({
                 date: activeDate!,
-                time: timeSlots[selectedTimeSlot as number].value
+                time: TIME_SLOTS[selectedTimeSlot as number].value
               })
             }} 
             className="font-mono mt-5 w-full transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold p-4 text-xs rounded-full bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30"
