@@ -1,6 +1,8 @@
 "use client"
 import TextField from "@/components/elements/form/TextField";
+import SelectedServiceOptions from "@/components/elements/SelectedServiceOptions";
 import ArrowIcon from "@/components/elements/icons/ArrowIcon";
+import BookingCalendar from "@/components/elements/BookingCalendar";
 import CheckIcon from "@/components/elements/icons/CheckIcon";
 import EllipsesVerticalIcon from "@/components/elements/icons/EllipsesVerticalIcon";
 import Image from "next/image";
@@ -181,17 +183,7 @@ export default function Home() {
     ? selectedServiceData.packages[selectedPackage]
     : null
 
-  const inferredTotalPrice = selectedServiceData
-    ? selectedServiceData.pricing.type === "packaged"
-      ? selectedPackageData?.pricing ?? selectedServiceData.pricing.amount
-      : selectedServiceData.pricing.type === "rolling"
-        ? selectedServiceData.pricing.amount * cyclesSelected
-        : selectedServiceData.pricing.amount
-    : 0
-
-  const duePercentage = selectedServiceData?.upfrontPercentage ?? 100
-  const inferredPriceDue = Math.round((inferredTotalPrice * duePercentage) / 100)
-  
+    
   return (
     <div className="w-full bg-cav-black p-6 min-h-screen h-inherit relative pb-10">
       {/* <div className="w-full h-[2vh]"></div> */}
@@ -260,22 +252,11 @@ export default function Home() {
         </>}
 
         {activeStep === 1 && <>
-          <div className="p-4 rounded-lg bg-black/40 border-2 border-cav-medium-gray shadow-lg shadow-black/50">
-            {/* <p className="text-[10px] text-cav-light-gray uppercase font-mono tracking-[0.8em] mb-2">Your Selection</p> */}
-            <p className="text-md text-cav-gold font-mono font-semibold">{selectedServiceData?.name ?? "No service selected"}</p>
-            
-            {selectedPackageData && <p className="text-sm text-white font-sans">{selectedPackageData.name}</p>}
-            
-            {selectedServiceData?.pricing.type === 'rolling' && <p className="text-sm text-white font-sans">{cyclesSelected} {selectedServiceData.pricing.cycle}s</p>}
-
-            {selectedServiceData && (
-              <>
-                <p className="text-sm text-gray-300 font-mono mt-3">Total: N{inferredTotalPrice.toLocaleString()}</p>
-                <p className="text-sm text-cav-gold font-mono font-semibold">Due now: N{inferredPriceDue.toLocaleString()}</p>
-                {duePercentage < 100 && <p className="text-xs text-gray-400 font-sans">({duePercentage}% upfront payment)</p>}
-              </>
-            )}
-          </div>
+          <SelectedServiceOptions
+            selectedPackageData={selectedPackageData}
+            selectedServiceData={selectedServiceData}
+            cyclesSelected={cyclesSelected}
+          />
 
           <div className="w-full mt-6">
             <TextField 
@@ -320,6 +301,18 @@ export default function Home() {
             />
           </div>
         </>}
+
+        {activeStep === 2 && <>
+          <SelectedServiceOptions
+            selectedPackageData={selectedPackageData}
+            selectedServiceData={selectedServiceData}
+            cyclesSelected={cyclesSelected}
+          />
+          <div className="mt-5">
+            <BookingCalendar 
+              returnSelection={(selection)=>{}} />
+          </div>
+        </>}
       </div>
 
       <div className="w-full fixed p-4 bg-cav-black left-0 bottom-0 min-h-20 mt-5">
@@ -333,10 +326,15 @@ export default function Home() {
             <ArrowIcon className="w-5 h-5" />
             Back
           </button>
-          <button onClick={()=>{changeStep(activeStep+1)}} className="font-mono transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold px-4 text-xs rounded-full h-10 bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30">
+          {activeStep < steps.length - 1 ? <button onClick={()=>{changeStep(activeStep+1)}} className="font-mono transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold px-4 text-xs rounded-full h-10 bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30">
             Next Step
             <ArrowIcon className="w-5 h-5 rotate-180" />
           </button>
+          :
+          <button onClick={()=>{}} className="font-mono transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold px-4 text-xs rounded-full h-10 bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30">
+            Proceed to Payment
+            <ArrowIcon className="w-5 h-5 rotate-180" />
+          </button>}
         </div>
       </div>
       

@@ -17,7 +17,7 @@ const ModalWrapper: FC<ModalWrapperProps> = ({
         <Transition appear show={shown} as={Fragment}>
             <Dialog
                 as="div"
-                className="fixed inset-0 z-50 overflow-y-auto bg-black/70 dark:bg-black/85"
+                className="fixed inset-0 z-50 overflow-y-auto bg-black/85"
                 onClose={closeFunction}
             >
                 <div className="min-h-screen px-4 text-center">
@@ -49,17 +49,17 @@ const ModalWrapper: FC<ModalWrapperProps> = ({
                         leaveFrom="opacity-100 scale-100"
                         leaveTo="opacity-0 scale-95"
                     >
-                        <div className={`relative inline-block ${maxWidthClass} p-6 my-8 text-left align-middle transition-all transform bg-white dark:bg-at-black shadow-xl rounded-lg dark:border dark:border-at-dark-gray/20`}>
-                            <button onClick={()=>{closeFunction()}} className='absolute top-3.75 right-3.75 text-gray-600 hover:text-gray-500'>
+                        <div className={`relative inline-block w-full max-w-xl p-6 my-8 text-left align-middle transition-all transform bg-cav-black shadow-xl rounded-lg dark:border dark:border-cav-medium-gray/20`}>
+                            <button onClick={()=>{closeFunction()}} className='absolute top-3.75 right-3.75 text-gray-400 hover:text-gray-300'>
                                 <CloseIcon className={`w-5 h-5`} />
                             </button>
                             {dialogTitle && dialogTitle !== '' && <DialogTitle
                                 as="h3"
-                                className="text-md font-medium leading-6 mb-4"
+                                className="text-md font-semibold leading-6 mb-4 font-mono"
                             >
                                 {dialogTitle}
                             </DialogTitle>}
-                            <div className="mt-2">
+                            <div className="mt-2 w-full">
                                 {children}
                             </div>
                         </div>
