@@ -6,9 +6,10 @@ import BookingCalendar from "@/components/elements/BookingCalendar";
 import CheckIcon from "@/components/elements/icons/CheckIcon";
 import EllipsesVerticalIcon from "@/components/elements/icons/EllipsesVerticalIcon";
 import { getInferredPriceDue } from "@/lib/servicePricing";
-import Image from "next/image";
 import Script from "next/script";
 import { useState } from "react";
+import { Validations } from "@/lib/interfaces";
+import { toast } from "sonner";
 
 type PaystackSuccessTransaction = {
   reference: string
@@ -36,7 +37,7 @@ declare global {
 interface UserPayload {
   name: string
   phone: string
-  emailAddress: string
+  email: string
   eventLocation?: 'abuja' | 'benue'
 }
 
@@ -69,8 +70,6 @@ export default function Home() {
   ]
 
   const [activeStep, setActiveStep] = useState(0)
-
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
 
   const services = [
     {
@@ -137,7 +136,7 @@ export default function Home() {
   const [userPayload, setUserPayload] = useState<UserPayload>({
     name: "",
     phone: "",
-    emailAddress: "",
+    email: "",
     eventLocation: undefined
   })
 
@@ -154,34 +153,6 @@ export default function Home() {
 
     return `${year}-${month}-${day}`
   }
-
-  const terms = `Policy Guide
-
-  1. PAYMENT & BOOKING POLICY
-  - A 70% deposit is required to secure all bookings.
-  - The remaining 30% balance must be completed once the project and revisions are approved, before final delivery.
-  - Please note: Final deliverables will not be released until full payment is received.
-  - Bookings made less than 24 hours in advance attract an express fee:
-    - Personal Content: N20,000
-    - Event Coverage: N50,000
-
-  2. REVISION POLICY
-  - All projects include 2 free revision rounds. Additional revisions beyond this will attract extra charges.
-
-  3. DELIVERY & CONTENT STRUCTURE POLICY
-  - Final deliverables will be ready within 24-48 hours after shoot completion.
-  - Standard content duration ranges between 30-60 seconds, with extended edits (up to 90 seconds) applicable for highlight videos or special requests.
-  - Delivery timelines may vary during peak periods; however, this will always be communicated in advance.
-
-  4. SCOPE OF WORK POLICY
-  - All deliverables are strictly based on the agreed project scope. Any additional requests outside the initial agreement will be billed separately.
-
-  5. CLIENT APPROVAL & RESPONSIBILITY POLICY
-  - Clients are expected to review all preview versions carefully before final approval.
-  - Requests that significantly alter previously approved content may require additional fees or a new booking.
-
-  Proceeding with payment confirms acceptance of all stated policies.
-  THANK YOU!!`
 
   const [selectedService, setSelectedService] = useState<number | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<number | null>(null)
@@ -207,10 +178,99 @@ export default function Home() {
     setCyclesSelected((prev) => Math.max(1, prev - 1))
   }
 
+  const [validationErrors, setValidationErrors] = useState<Validations>({})
+
+  const validateStepOne = () => {
+    const errors: Validations = {}
+    if(selectedService === null){
+      errors.service = true
+      // toast.error('Please select a service')
+    }
+
+    if(selectedService !== null && services[selectedService].packages && services[selectedService].packages!.length > 0 && selectedPackage === null) {
+      errors.package = true
+      // toast.error('Please select a package from the service')
+    }
+
+    if(selectedService !== null && services[selectedService].pricing.type === 'rolling' && !cyclesSelected) {
+      errors.cycles = true
+      // toast.error('Please select a cycle')
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0;
+
+  }
+
+  const validateStepTwo = () => {
+    const errors: Validations = {}
+    if(userPayload.name === ''){
+      errors.name = true
+    }
+    
+    if(userPayload.email === ''){
+      errors.email = true
+    }
+
+    if(userPayload.phone === ''){
+      errors.phone = true
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0;
+  }
+
+  const validateStepThree = () => {
+    const errors: Validations = {}
+
+    if (!bookingPayload.date) {
+      errors.date = true
+    }
+
+    if (!bookingPayload.timeSlot) {
+      errors.timeSlot = true
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const showStepErrorToast = (step: number) => {
+    if (step === 0) {
+      toast.error("Select a service before continuing.", {
+        description: "Choose a package or duration where required.",
+      })
+      return
+    }
+
+    if (step === 1) {
+      toast.error("Complete your contact details.", {
+        description: "Name, email, and phone number are required.",
+      })
+      return
+    }
+
+    toast.error("Choose a booking date and time slot.")
+  }
+
   const changeStep = (step: number) => {
     if(activeStep === 0 && step < 0) return
     if(activeStep === steps.length && step > steps.length) return
 
+    if(activeStep === 0 && !validateStepOne()){
+      showStepErrorToast(0)
+      return
+    }
+
+    if(activeStep === 1 && !validateStepTwo()){
+      showStepErrorToast(1)
+      return
+    }
+
+    if(activeStep === 2 && step > activeStep && !validateStepThree()){
+      showStepErrorToast(2)
+      return
+    }
     setActiveStep(step)
   }
 
@@ -223,36 +283,63 @@ export default function Home() {
   const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? ""
   const inferredPriceDue = getInferredPriceDue(selectedServiceData, selectedPackageData, cyclesSelected)
   const canProceedToPayment = Boolean(
-    selectedServiceData && userPayload.emailAddress.trim() && inferredPriceDue > 0,
+    selectedServiceData && userPayload.email.trim() && bookingPayload.date && bookingPayload.timeSlot && inferredPriceDue > 0,
   )
 
   const handlePaymentSuccess = (transaction: PaystackSuccessTransaction) => {
-    void transaction
+    toast.success("Payment initialized successfully.", {
+      description: `Reference: ${transaction.reference}`,
+    })
   }
 
   const handleProceedToPayment = () => {
-    if (!selectedServiceData) return
-    if (!userPayload.emailAddress.trim()) return
-    if (inferredPriceDue <= 0) return
+    if (!selectedServiceData) {
+      toast.error("Select a service before payment.")
+      return
+    }
+    if (!userPayload.email.trim()) {
+      toast.error("Enter an email address to continue.")
+      return
+    }
+    if (!bookingPayload.date || !bookingPayload.timeSlot) {
+      toast.error("Choose a booking date and time first.")
+      return
+    }
+    if (inferredPriceDue <= 0) {
+      toast.error("Unable to determine the payment amount.")
+      return
+    }
     if (!paystackPublicKey) {
       console.error("Missing NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY.")
+      toast.error("Payment is not configured right now.", {
+        description: "Missing Paystack public key.",
+      })
       return
     }
     if (!window.PaystackPop) {
       console.error("Paystack InlineJS is not available.")
+      toast.error("Payment gateway is still loading.", {
+        description: "Please try again in a moment.",
+      })
       return
     }
+
+    // toast.message("Opening secure payment", {
+    //   description: "Complete the transaction in the Paystack window.",
+    // })
 
     const popup = new window.PaystackPop()
 
     popup.newTransaction({
       key: paystackPublicKey,
-      email: userPayload.emailAddress.trim(),
+      email: userPayload.email.trim(),
       amount: inferredPriceDue * 100,
       firstname: userPayload.name.trim() || undefined,
       phone: userPayload.phone.trim() || undefined,
       onSuccess: handlePaymentSuccess,
-      onCancel: () => {},
+      onCancel: () => {
+        toast.info("Payment was cancelled.")
+      },
     })
   }
 
@@ -340,7 +427,7 @@ export default function Home() {
               inputLabel={"Name"} 
               inputPlaceholder={"Your Name"} 
               inputType={"text"} 
-              hasError={false} 
+              hasError={validationErrors.name} 
               returnFieldValue={(value: unknown) => {
                 setUserPayload((prev) => ({
                   ...prev,
@@ -353,18 +440,18 @@ export default function Home() {
           </div>
           <div className="w-full mt-3">
             <TextField 
-              requiredField={true} 
+              requiredField={true}
               inputLabel={"Email address"} 
               inputPlaceholder={"Your active email address"} 
               inputType={"text"} 
-              hasError={false} 
+              hasError={validationErrors.email} 
               returnFieldValue={(value: unknown) => {
                 setUserPayload((prev) => ({
                   ...prev,
-                  emailAddress: String(value)
+                  email: String(value)
                 }))
               }} 
-              preloadValue={userPayload.emailAddress} 
+              preloadValue={userPayload.email} 
               disabled={false} 
             />
           </div>
@@ -374,7 +461,7 @@ export default function Home() {
               inputLabel={"Phone number"} 
               inputPlaceholder={"Your active phone number (whatsapp preferred)"} 
               inputType={"text"} 
-              hasError={false} 
+              hasError={validationErrors.phone} 
               returnFieldValue={(value: unknown) => {
                 setUserPayload((prev) => ({
                   ...prev,
@@ -407,18 +494,21 @@ export default function Home() {
               }} />
           </div>
         </>}
+
+        {activeStep === 3 && <>
+          <h3 className="text-white text-lg font-semibold mb-1 font-mono">Your Booking Summary</h3>
+          <p className="mb-4 text-white font-sans text-sm">Please see your booking summary below. You can use the back button if you need to change any thing or just click the "Proceed to payment" button when u're ready</p>
+            <SelectedServiceOptions
+              selectedPackageData={selectedPackageData}
+              selectedServiceData={selectedServiceData}
+              cyclesSelected={cyclesSelected}
+              customerData={userPayload}
+              bookingData={bookingPayload}
+            />
+          </>
+        }
       </div>
 
-      {activeStep === 2 && <>
-          <SelectedServiceOptions
-            selectedPackageData={selectedPackageData}
-            selectedServiceData={selectedServiceData}
-            cyclesSelected={cyclesSelected}
-            customerData={userPayload}
-            bookingData={bookingPayload}
-          />
-        </>
-      }
 
       <div className="w-full fixed p-4 bg-cav-black left-0 bottom-0 min-h-20 mt-5">
         <div className="flex items-center justify-center w-[40%] gap-x-4 mx-auto my-5">

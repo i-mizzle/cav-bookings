@@ -10,7 +10,7 @@ type SelectedPackageData = {
 type CustomerData = {
   name: string
   phone: string
-  emailAddress: string
+  email: string
 }
 
 type BookingData = {
@@ -72,7 +72,7 @@ const formatTimeSlotLabel = (timeSlotValue?: string) => {
 const hasCustomerData = (customerData?: CustomerData) => {
   if (!customerData) return false
 
-  return [customerData.name, customerData.emailAddress, customerData.phone].some((value) => value.trim().length > 0)
+  return [customerData.name, customerData.email, customerData.phone].some((value) => value.trim().length > 0)
 }
 
 const hasBookingData = (bookingData?: BookingData) => {
@@ -107,7 +107,7 @@ const SelectedServiceOptions: FC<SelectedServiceProps> = ({ selectedPackageData,
         {shouldShowBookingDetails && <div className="mt-4 space-y-2 border-t border-cav-medium-gray/60 pt-4 text-xs font-mono text-cav-light-gray">
           {customerData && <>
             <p>Name: <span className="text-white">{customerData?.name || "Not provided"}</span></p>
-            <p>Email: <span className="text-white">{customerData?.emailAddress || "Not provided"}</span></p>
+            <p>Email: <span className="text-white">{customerData?.email || "Not provided"}</span></p>
             <p>Phone: <span className="text-white">{customerData?.phone || "Not provided"}</span></p>
           </>}
           {bookingData && <>

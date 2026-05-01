@@ -1,5 +1,5 @@
+import { IconProps } from '@/lib/interfaces'
 import React from 'react'
-import { IconProps } from './interfaces'
 
 const ArrowIcon: React.FC<IconProps> = ({className}) => {
   return (

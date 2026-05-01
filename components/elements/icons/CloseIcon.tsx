@@ -1,5 +1,5 @@
+import { IconProps } from '@/lib/interfaces'
 import React, { FC } from 'react'
-import { IconProps } from './interfaces'
 
 const CloseIcon: FC<IconProps> = ({className}) => {
   return (
