@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import ArrowIcon from "./icons/ArrowIcon";
 import ModalWrapper from "../wrappers/ModalWrapper";
-import moment from "moment";
 import CheckIcon from "./icons/CheckIcon";
+import Spinner from "./icons/Spinner";
 
 interface DateTimeSelection {
   date: Date
@@ -19,124 +19,205 @@ interface BookingData {
 interface BookingCalendarProps {
   returnSelection: (data: DateTimeSelection) => void;
   bookingData?: BookingData;
+  serviceId?: string | null;
 }
 
+type AvailabilitySlot = {
+  start: string;
+  end: string;
+};
+
+type AvailabilityResponse = {
+  slots?: AvailabilitySlot[];
+  error?: string;
+};
+
+type SlotOption = {
+  start: string;
+  end: string;
+  value: string;
+  label: string;
+};
+
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const TIME_SLOTS = [
-  {
-    label: "09:00 AM to 10:00 AM",
-    value: "09:00-10:00"
-  },
-  {
-    label: "10:00 AM to 11:00 AM",
-    value: "10:00-11:00"
-  },
-  {
-    label: "11:00 AM to 12:00 PM",
-    value: "11:00-12:00"
-  },
-  {
-    label: "12:00 PM to 01:00 PM",
-    value: "12:00-13:00"
-  },
-  {
-    label: "01:00 PM to 02:00 PM",
-    value: "13:00-14:00"
-  },
-  {
-    label: "02:00 PM to 03:00 PM",
-    value: "14:00-15:00"
-  },
-  {
-    label: "03:00 PM to 04:00 PM",
-    value: "15:00-16:00"
-  },
-  {
-    label: "04:00 PM to 05:00 PM",
-    value: "16:00-17:00"
-  },
-  {
-    label: "05:00 PM to 06:00 PM",
-    value: "17:00-18:00"
-  }
-];
 
 const parseBookingDate = (dateValue?: string) => {
   if (!dateValue) return null;
 
-  return new Date(`${dateValue}T00:00:00`);
+  return new Date(`${dateValue}T00:00:00.000Z`);
 };
 
-const getTimeSlotIndex = (timeSlotValue?: string) => {
-  if (!timeSlotValue) return null;
-
-  const matchedSlotIndex = TIME_SLOTS.findIndex((slot) => slot.value === timeSlotValue);
-  return matchedSlotIndex >= 0 ? matchedSlotIndex : null;
+const toUtcMonthStart = (date: Date) => {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 };
 
-export default function BookingCalendar({ returnSelection, bookingData }: BookingCalendarProps) {
+const toUtcDayStart = (date: Date) => {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+};
+
+const formatUtcDateKey = (date: Date) => {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatUtcDateLabel = (date: Date) => {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
+
+const formatUtcTime = (date: Date) => {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(date);
+};
+
+const toTimeSlotValue = (start: Date, end: Date) => {
+  const formatValuePart = (date: Date) => {
+    const hours = `${date.getUTCHours()}`.padStart(2, "0");
+    const minutes = `${date.getUTCMinutes()}`.padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+  };
+
+  return `${formatValuePart(start)}-${formatValuePart(end)}`;
+};
+
+const toSlotOption = (slot: AvailabilitySlot): SlotOption => {
+  const start = new Date(slot.start);
+  const end = new Date(slot.end);
+
+  return {
+    start: slot.start,
+    end: slot.end,
+    value: toTimeSlotValue(start, end),
+    label: `${formatUtcTime(start)} to ${formatUtcTime(end)} UTC`,
+  };
+};
+
+export default function BookingCalendar({ returnSelection, bookingData, serviceId }: BookingCalendarProps) {
   const currentMonthStart = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return toUtcMonthStart(now);
   }, []);
   const todayStart = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return toUtcDayStart(now);
   }, []);
 
   const [visibleMonth, setVisibleMonth] = useState<Date>(currentMonthStart);
   const [activeDate, setActiveDate] = useState<Date | null>(parseBookingDate(bookingData?.date))
   const [timeslotSelectionOpen, setTimeslotSelectionOpen] = useState(false)
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<number | null>(getTimeSlotIndex(bookingData?.timeSlot))
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(bookingData?.timeSlot ?? null)
+  const [availableSlots, setAvailableSlots] = useState<SlotOption[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState<string | null>(null)
 
   const monthLabel = visibleMonth.toLocaleString("en-US", {
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   });
 
-  const firstDayOfMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth(),
-    1
-  );
+  const firstDayOfMonth = visibleMonth;
   const daysInMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth() + 1,
-    0
-  ).getDate();
+    Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() + 1, 0)
+  ).getUTCDate();
 
-  const leadingEmptySlots = firstDayOfMonth.getDay();
+  const leadingEmptySlots = firstDayOfMonth.getUTCDay();
 
   const canGoToPreviousMonth =
-    visibleMonth.getFullYear() > currentMonthStart.getFullYear() ||
-    (visibleMonth.getFullYear() === currentMonthStart.getFullYear() &&
-      visibleMonth.getMonth() > currentMonthStart.getMonth());
+    visibleMonth.getUTCFullYear() > currentMonthStart.getUTCFullYear() ||
+    (visibleMonth.getUTCFullYear() === currentMonthStart.getUTCFullYear() &&
+      visibleMonth.getUTCMonth() > currentMonthStart.getUTCMonth());
 
   const goToPreviousMonth = () => {
     if (!canGoToPreviousMonth) return;
 
     setVisibleMonth(
-      new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1)
+      new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() - 1, 1))
     );
   };
 
   const goToNextMonth = () => {
     setVisibleMonth(
-      new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1)
+      new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() + 1, 1))
     );
   };
 
   useEffect(() => {
     const incomingDate = parseBookingDate(bookingData?.date);
-    const incomingTimeSlot = getTimeSlotIndex(bookingData?.timeSlot);
 
     setActiveDate(incomingDate);
-    setSelectedTimeSlot(incomingTimeSlot);
+    setSelectedTimeSlot(bookingData?.timeSlot ?? null);
 
     if (incomingDate) {
-      setVisibleMonth(new Date(incomingDate.getFullYear(), incomingDate.getMonth(), 1));
+      setVisibleMonth(toUtcMonthStart(incomingDate));
     }
   }, [bookingData?.date, bookingData?.timeSlot]);
+
+  useEffect(() => {
+    if (!activeDate || !serviceId) {
+      setAvailableSlots([])
+      setSlotsError(null)
+      return
+    }
+
+    const abortController = new AbortController()
+
+    const loadAvailability = async () => {
+      try {
+        setLoadingSlots(true)
+        setSlotsError(null)
+
+        const searchParams = new URLSearchParams({
+          date: formatUtcDateKey(activeDate),
+          serviceId,
+        })
+        const response = await fetch(`/api/availability?${searchParams.toString()}`, {
+          signal: abortController.signal,
+          cache: "no-store",
+        })
+        const data = (await response.json()) as AvailabilityResponse
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to load availability.")
+        }
+
+        const nextSlots = (data.slots ?? []).map(toSlotOption)
+        setAvailableSlots(nextSlots)
+        setSelectedTimeSlot((currentValue) =>
+          currentValue && nextSlots.some((slot) => slot.value === currentValue) ? currentValue : null
+        )
+      } catch (error) {
+        if (abortController.signal.aborted) return
+
+        console.error("Unable to load availability.", error)
+        setAvailableSlots([])
+        setSlotsError(error instanceof Error ? error.message : "Failed to load availability.")
+      } finally {
+        if (!abortController.signal.aborted) {
+          setLoadingSlots(false)
+        }
+      }
+    }
+
+    void loadAvailability()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [activeDate, serviceId])
 
   const handleCalendarDateClick = (date: Date) => {
     setActiveDate(date)
@@ -146,31 +227,20 @@ export default function BookingCalendar({ returnSelection, bookingData }: Bookin
       bookingData?.timeSlot &&
       isSameDay(incomingDate, date)
 
-    setSelectedTimeSlot(shouldKeepCurrentTimeSlot ? getTimeSlotIndex(bookingData?.timeSlot) : null)
+    setSelectedTimeSlot(shouldKeepCurrentTimeSlot ? bookingData.timeSlot : null)
     setTimeslotSelectionOpen(true)
   }
 
   const isSameDay = (first: Date, second: Date) => {
     return (
-      first.getFullYear() === second.getFullYear() &&
-      first.getMonth() === second.getMonth() &&
-      first.getDate() === second.getDate()
+      first.getUTCFullYear() === second.getUTCFullYear() &&
+      first.getUTCMonth() === second.getUTCMonth() &&
+      first.getUTCDate() === second.getUTCDate()
     );
   };
 
-  const isSlotPast = (slotValue: string) => {
-    if (!activeDate) return false;
-
-    const now = new Date();
-    if (!isSameDay(activeDate, now)) return false;
-
-    const [startTime] = slotValue.split("-");
-    const [startHour, startMinute] = startTime.split(":").map(Number);
-
-    const slotStart = new Date(activeDate);
-    slotStart.setHours(startHour, startMinute, 0, 0);
-
-    return now > slotStart;
+  const isSlotPast = (slotStartIso: string) => {
+    return new Date() > new Date(slotStartIso);
   };
 
   return (
@@ -217,22 +287,19 @@ export default function BookingCalendar({ returnSelection, bookingData }: Bookin
 
           {Array.from({ length: daysInMonth }).map((_, index) => {
             const day = index + 1;
-            const date = new Date(
-              visibleMonth.getFullYear(),
-              visibleMonth.getMonth(),
+            const date = new Date(Date.UTC(
+              visibleMonth.getUTCFullYear(),
+              visibleMonth.getUTCMonth(),
               day
-            );
+            ));
             const now = new Date();
-            const isToday =
-              date.getFullYear() === now.getFullYear() &&
-              date.getMonth() === now.getMonth() &&
-              date.getDate() === now.getDate();
+            const isToday = isSameDay(date, now);
             const isPastDate = date < todayStart;
             const isActiveDate =
               activeDate !== null &&
-              date.getFullYear() === activeDate.getFullYear() &&
-              date.getMonth() === activeDate.getMonth() &&
-              date.getDate() === activeDate.getDate();
+              date.getUTCFullYear() === activeDate.getUTCFullYear() &&
+              date.getUTCMonth() === activeDate.getUTCMonth() &&
+              date.getUTCDate() === activeDate.getUTCDate();
 
             return (
               <button
@@ -257,23 +324,37 @@ export default function BookingCalendar({ returnSelection, bookingData }: Bookin
         shown={timeslotSelectionOpen} 
         closeFunction={()=>{
           setTimeslotSelectionOpen(false)
-          setSelectedTimeSlot(null)
         } } 
         dialogTitle={`Select a time slot`} 
         maxWidthClass={"max-w-xl"}
       >
         <div className="w-full">
-          <p className="text-sm font-sans">Select a timeslot for your booking on {moment(activeDate).format('dddd, LL')}</p>
+          <p className="text-sm font-sans">Select a UTC timeslot for your booking on {activeDate ? formatUtcDateLabel(activeDate) : "your selected date"}</p>
+          {/* <p className="mt-1 text-xs font-mono text-cav-light-gray">Only backend-approved UTC slots are shown here.</p> */}
 
-          {TIME_SLOTS.map((slot, slotIndex) => {
-            const slotIsPast = isSlotPast(slot.value);
+          {loadingSlots && 
+            <div className="w-full min-h-50 flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center">
+              <Spinner className="animate-spin w-8 h-8 text-cav-light-gray" />
+              <p className="font-sans text-xs">Loading available time slots</p>
+              </div>
+            </div>}
+
+          {!loadingSlots && slotsError && <p className="mt-4 text-sm font-sans text-red-300">{slotsError}</p>}
+
+          {!loadingSlots && !slotsError && availableSlots.length === 0 && (
+            <p className="mt-4 text-sm font-sans text-cav-light-gray">No slots are available for this date.</p>
+          )}
+
+          {!loadingSlots && !slotsError && availableSlots.map((slot) => {
+            const slotIsPast = isSlotPast(slot.start);
 
             return (
               <button
-                onClick={()=>{setSelectedTimeSlot(slotIndex)}}
-                key={slotIndex}
+                onClick={()=>{setSelectedTimeSlot(slot.value)}}
+                key={slot.start}
                 disabled={slotIsPast}
-                className={`w-full flex items-center justify-between transition duration-200 my-3 p-4 rounded-lg text-xs font-mono font-semibold border-2 bg-cav-medium-gray/30 text-left ${selectedTimeSlot === slotIndex ? 'border-cav-gold text-cav-gold' : 'border-cav-medium-gray text-cav-light-gray'} ${slotIsPast ? 'opacity-40 cursor-not-allowed' : ''}`}
+                className={`w-full flex items-center justify-between transition duration-200 my-3 p-4 rounded-lg text-xs font-mono font-semibold border-2 bg-cav-medium-gray/30 text-left ${selectedTimeSlot === slot.value ? 'border-cav-gold text-cav-gold' : 'border-cav-medium-gray text-cav-light-gray'} ${slotIsPast ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
                 <span>{slot.label }</span>
                 <span className="flex items-center gap-2">
@@ -282,7 +363,7 @@ export default function BookingCalendar({ returnSelection, bookingData }: Bookin
                       Unavailable
                     </span>
                   )}
-                  <span className={`w-4 h-4 transition-all duration-200 rounded-full bg-cav-gold flex items-center justify-center shadow-lg shadow-black ${selectedTimeSlot === slotIndex ? 'opacity-100' : 'opacity-0'}`}>
+                  <span className={`w-4 h-4 transition-all duration-200 rounded-full bg-cav-gold flex items-center justify-center shadow-lg shadow-black ${selectedTimeSlot === slot.value ? 'opacity-100' : 'opacity-0'}`}>
                     <CheckIcon className="w-3 h-3 text-cav-black" />
                   </span>
                 </span>
@@ -291,14 +372,18 @@ export default function BookingCalendar({ returnSelection, bookingData }: Bookin
           })}
 
           <button 
+            disabled={!activeDate || !selectedTimeSlot}
             onClick={()=>{
+              const selectedSlot = availableSlots.find((slot) => slot.value === selectedTimeSlot)
+              if (!activeDate || !selectedSlot) return
+
               setTimeslotSelectionOpen(false)
               returnSelection({
-                date: activeDate!,
-                time: TIME_SLOTS[selectedTimeSlot as number].value
+                date: activeDate,
+                time: selectedSlot.value
               })
             }} 
-            className="font-mono mt-5 w-full transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold p-4 text-xs rounded-full bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30"
+            className="font-mono mt-5 w-full transition active:shadow-none active:bg-cav-black active:text-cav-light-gray font-semibold p-4 text-xs rounded-full bg-cav-gold text-cav-black flex items-center justify-center shadow-xl shadow-black/30 disabled:cursor-not-allowed disabled:bg-cav-gold/50 disabled:text-cav-black/60 disabled:shadow-none"
           >
             Confirm & Proceed
             <ArrowIcon className="w-5 h-5 rotate-180" />

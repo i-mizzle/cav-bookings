@@ -44,6 +44,10 @@ const pricingSchema = new Schema(
 
 const serviceSchema = new Schema(
   {
+    order: {
+      type: Number,
+      required: true
+    },
     name: {
       type: String,
       required: true,
@@ -68,6 +72,11 @@ const serviceSchema = new Schema(
     packages: {
       type: [servicePackageSchema],
       default: [],
+    },
+    meetLinkRequired: {
+      type: Boolean,
+      required: true,
+      default: false,
     },
     duration: {
       type: Number,

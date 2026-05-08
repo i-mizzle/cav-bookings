@@ -1,8 +1,14 @@
-import { connectToDatabase } from "@/lib/mongodb";
-import { serviceSeedData } from "@/lib/seeds/services";
-import { Service } from "@/models/Service";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
 
 async function seedServices() {
+  const [{ connectToDatabase }, { serviceSeedData }, { Service }] = await Promise.all([
+    import("@/lib/mongodb"),
+    import("@/lib/seeds/services"),
+    import("@/models/Service"),
+  ]);
+
   await connectToDatabase();
 
   const operations = serviceSeedData.map((service) => ({

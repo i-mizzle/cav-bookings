@@ -43,8 +43,9 @@ const formatDateLabel = (dateValue?: string) => {
     weekday: "long",
     year: "numeric",
     month: "long",
-    day: "numeric"
-  }).format(new Date(`${dateValue}T00:00:00`))
+    day: "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${dateValue}T00:00:00.000Z`))
 }
 
 const formatTimeSlotLabel = (timeSlotValue?: string) => {
@@ -56,17 +57,17 @@ const formatTimeSlotLabel = (timeSlotValue?: string) => {
 
   const formatSingleTime = (time: string) => {
     const [hour, minute] = time.split(":").map(Number)
-    const timeValue = new Date()
-    timeValue.setHours(hour, minute, 0, 0)
+    const timeValue = new Date(Date.UTC(1970, 0, 1, hour, minute, 0, 0))
 
     return new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-      hour12: true
+      hour12: true,
+      timeZone: "UTC"
     }).format(timeValue)
   }
 
-  return `${formatSingleTime(startTime)} to ${formatSingleTime(endTime)}`
+  return `${formatSingleTime(startTime)} to ${formatSingleTime(endTime)} UTC`
 }
 
 const hasCustomerData = (customerData?: CustomerData) => {

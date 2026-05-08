@@ -7,6 +7,22 @@ const bookingSchema = new Schema(
       ref: "Service",
       required: true,
     },
+    customerName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerEmail: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
+    customerPhone: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -22,20 +38,34 @@ const bookingSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["confirmed", "cancelled"],
+      enum: ["pending", "confirmed", "cancelled"],
       required: true,
-      default: "confirmed",
+      default: "pending",
       index: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid"],
+      required: true,
+      default: "pending",
+      index: true,
+    },
+    paymentReference: {
+      type: String,
+      required: false,
+      trim: true,
     },
     googleEventId: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
+      default: "",
     },
     meetLink: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
+      default: "",
     },
   },
   {

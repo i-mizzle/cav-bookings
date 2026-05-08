@@ -8,7 +8,7 @@ export async function GET() {
     await connectToDatabase();
 
     const services = await Service.find({})
-      .sort({ name: 1 })
+      .sort({ order: 1, name: 1 })
       .lean();
 
     return Response.json({

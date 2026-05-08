@@ -6,6 +6,7 @@ import {
   expandRange,
   generateHourlySlots,
   parseUtcDate,
+  type TimeRange,
   type ServiceConfig,
 } from "@/lib/booking";
 import { getBusyTimes, normalizeBusyTimes } from "@/lib/googleCalendar";
@@ -121,9 +122,16 @@ export async function GET(request: Request) {
     }
 
     const bookingBlocks = await getBookingBlockers(windowStart, windowEnd);
-    const busyBlocks = normalizeBusyTimes(
-      await getBusyTimes(windowStart.toISOString(), windowEnd.toISOString())
-    );
+    let busyBlocks: TimeRange[] = [];
+
+    try {
+      busyBlocks = normalizeBusyTimes(
+        await getBusyTimes(windowStart.toISOString(), windowEnd.toISOString())
+      );
+    } catch (error) {
+      console.warn("Unable to load Google Calendar busy times for availability.", error);
+    }
+
     const slots = generateHourlySlots({
       windows,
       service,
@@ -133,6 +141,7 @@ export async function GET(request: Request) {
     return Response.json({
       date: date.toISOString(),
       slots,
+      calendarUnavailable: busyBlocks.length === 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load availability.";

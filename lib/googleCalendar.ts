@@ -5,11 +5,33 @@ type CalendarBusySlot = {
   end?: string | null;
 };
 
+const GOOGLE_API_TIMEOUT_MS = 8000;
+
+function isServiceAccountEmail(value: string) {
+  return value.endsWith(".iam.gserviceaccount.com");
+}
+
+function formatGoogleCalendarError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message.includes("The operation was aborted")) {
+      return "Google Calendar request timed out before completion.";
+    }
+
+    if (error.message.includes("oauth2.googleapis.com/token failed")) {
+      return "Google Calendar token request failed. Check GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY, and outbound network access.";
+    }
+
+    return error.message;
+  }
+
+  return "Google Calendar request failed.";
+}
+
 function getCalendarConfig() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-  if (!clientEmail || !privateKey) {
+  if (!clientEmail || !privateKey || !isServiceAccountEmail(clientEmail)) {
     return null;
   }
 
@@ -46,51 +68,77 @@ export function isGoogleCalendarConfigured() {
 }
 
 export async function getBusyTimes(start: string, end: string) {
-  const { client, calendarId } = getCalendarClient();
-  const response = await client.freebusy.query({
-    requestBody: {
-      timeMin: start,
-      timeMax: end,
-      items: [{ id: calendarId }],
-    },
-  });
+  try {
+    const { client, calendarId } = getCalendarClient();
+    const response = await client.freebusy.query(
+      {
+        requestBody: {
+          timeMin: start,
+          timeMax: end,
+          items: [{ id: calendarId }],
+        },
+      },
+      {
+        timeout: GOOGLE_API_TIMEOUT_MS,
+      }
+    );
 
-  return response.data.calendars?.[calendarId]?.busy ?? [];
+    return response.data.calendars?.[calendarId]?.busy ?? [];
+  } catch (error) {
+    throw new Error(formatGoogleCalendarError(error));
+  }
 }
 
 export async function createCalendarEvent({
   start,
   end,
-  email,
+  summary,
+  description,
+  createMeetLink,
 }: {
   start: string;
   end: string;
-  email: string;
+  summary: string;
+  description: string;
+  createMeetLink: boolean;
 }) {
-  const { client, calendarId } = getCalendarClient();
-  const response = await client.events.insert({
-    calendarId,
-    conferenceDataVersion: 1,
-    requestBody: {
-      summary: "Booking",
-      start: { dateTime: start },
-      end: { dateTime: end },
-      attendees: [{ email }],
-      conferenceData: {
-        createRequest: {
-          requestId: crypto.randomUUID(),
+  try {
+    const { client, calendarId } = getCalendarClient();
+    const response = await client.events.insert(
+      {
+        calendarId,
+        conferenceDataVersion: createMeetLink ? 1 : 0,
+        requestBody: {
+          summary,
+          description,
+          start: { dateTime: start },
+          end: { dateTime: end },
+          ...(createMeetLink
+            ? {
+                conferenceData: {
+                  createRequest: {
+                    requestId: crypto.randomUUID(),
+                  },
+                },
+              }
+            : {}),
         },
       },
-    },
-  });
+      {
+        timeout: GOOGLE_API_TIMEOUT_MS,
+      }
+    );
 
-  return {
-    eventId: response.data.id ?? "",
-    meetLink:
-      response.data.conferenceData?.entryPoints?.find(
-        (entryPoint) => entryPoint.entryPointType === "video"
-      )?.uri ?? response.data.hangoutLink ?? "",
-  };
+    return {
+      eventId: response.data.id ?? "",
+      meetLink:
+        response.data.conferenceData?.entryPoints?.find(
+          (entryPoint) => entryPoint.entryPointType === "video"
+        )?.uri ?? response.data.hangoutLink ?? "",
+    };
+  } catch (error) {
+    throw new Error(formatGoogleCalendarError(error));
+  }
 }
 
 export async function deleteCalendarEvent(eventId: string) {
@@ -98,11 +146,20 @@ export async function deleteCalendarEvent(eventId: string) {
     return;
   }
 
-  const { client, calendarId } = getCalendarClient();
-  await client.events.delete({
-    calendarId,
-    eventId,
-  });
+  try {
+    const { client, calendarId } = getCalendarClient();
+    await client.events.delete(
+      {
+        calendarId,
+        eventId,
+      },
+      {
+        timeout: GOOGLE_API_TIMEOUT_MS,
+      }
+    );
+  } catch (error) {
+    throw new Error(formatGoogleCalendarError(error));
+  }
 }
 
 export function normalizeBusyTimes(busySlots: CalendarBusySlot[]) {
