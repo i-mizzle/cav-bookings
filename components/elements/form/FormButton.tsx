@@ -14,7 +14,7 @@ const FormButton: React.FC<FormButtonProps> = ({type="button", buttonLabel, butt
             type={type}
             disabled={processing || disabled} 
             onClick={()=>{buttonAction()}} 
-            className='w-full p-4 rounded-lg bg-locum-black text-white text-sm transition duration-200 hover:bg-locum-dark-gray font-[550] flex items-center justify-center'
+            className='w-full p-4 rounded-lg bg-cav-gold text-cav-black text-sm transition duration-200 hover:bg-cav-dark-gold font-[550] flex items-center justify-center'
         >
             {processing ? <div className='btn-loader' /> : buttonLabel}
             {/* {processing ? <div className='btn-loader' /> : buttonLabel as React.ReactNode} */}

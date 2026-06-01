@@ -181,6 +181,45 @@ function buildBookingDescription({
   ].join("\n");
 }
 
+export async function GET() {
+  try {
+    await connectToDatabase();
+
+    const bookings = await Booking.find({})
+      .sort({ start: -1 })
+      .populate("serviceId", "name slug pricing packages")
+      .lean();
+
+    return Response.json({
+      bookings: bookings.map((b) => ({
+        id: String(b._id),
+        customerName: b.customerName,
+        customerEmail: b.customerEmail,
+        customerPhone: b.customerPhone,
+        start: b.start instanceof Date ? b.start.toISOString() : String(b.start),
+        end: b.end instanceof Date ? b.end.toISOString() : String(b.end),
+        status: b.status,
+        paymentStatus: b.paymentStatus,
+        paymentReference: b.paymentReference ?? null,
+        meetLink: b.meetLink ?? "",
+        service: b.serviceId
+          ? {
+              id: String((b.serviceId as { _id: unknown })._id),
+              name: (b.serviceId as { name: string }).name,
+              slug: (b.serviceId as { slug: string }).slug,
+              pricing: (b.serviceId as { pricing: unknown }).pricing,
+              packages: (b.serviceId as { packages: unknown[] }).packages ?? [],
+            }
+          : null,
+        createdAt: b.createdAt instanceof Date ? b.createdAt.toISOString() : String(b.createdAt),
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load bookings.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     await connectToDatabase();
