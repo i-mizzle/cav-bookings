@@ -554,16 +554,23 @@ function ServiceForm({ form, errors, setField, submitting, onSubmit, submitLabel
       </div>
 
       {form.pricingType === "rolling" && (
-        <TextField
-          requiredField={false}
-          inputLabel="Billing Cycle"
-          inputPlaceholder="e.g. month, week"
-          inputType="text"
-          hasError={false}
-          returnFieldValue={(v) => setField("pricingCycle", v as string)}
-          preloadValue={form.pricingCycle}
-          disabled={submitting}
-        />
+        <div>
+          <label className="text-xs font-medium font-mono text-gray-500 mb-1 block">
+            Billing Cycle
+          </label>
+          <select
+            value={form.pricingCycle}
+            onChange={(e) => setField("pricingCycle", e.target.value)}
+            disabled={submitting}
+            className="rounded py-4 px-4 bg-black/20 text-xs block w-full focus:border-black focus:outline-none border border-black/20 transition duration-200 font-mono"
+          >
+            <option value="">Select cycle</option>
+            <option value="hourly">hourly</option>
+            <option value="daily">daily</option>
+            <option value="weekly">weekly</option>
+            <option value="monthly">monthly</option>
+          </select>
+        </div>
       )}
 
       {form.pricingType === "packaged" && (
