@@ -301,7 +301,7 @@ export default function ServicesClient() {
       {/* Service list */}
       {loading ? (
         <div className="flex justify-center py-16">
-          <Spinner className="w-6 h-6 text-cav-light-gray" />
+          <Spinner className="w-6 h-6 text-cav-light-gray animate-spin" />
         </div>
       ) : services.length === 0 ? (
         <div className="rounded-xl border border-cav-medium-gray/40 bg-cav-dark-gray p-6 text-sm font-sans text-cav-light-gray text-center">
