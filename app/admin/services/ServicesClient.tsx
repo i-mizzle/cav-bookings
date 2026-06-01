@@ -6,6 +6,7 @@ import ModalWrapper from "@/components/wrappers/ModalWrapper";
 import TextField from "@/components/elements/form/TextField";
 import FormButton from "@/components/elements/form/FormButton";
 import Spinner from "@/components/elements/icons/Spinner";
+import TrashIcon from "@/components/elements/icons/TrashIcon";
 
 interface ServicePricing {
   amount: number;
@@ -117,6 +118,7 @@ export default function ServicesClient() {
   const [form, setForm] = useState<ServiceFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
 
   const fetchServices = useCallback(async () => {
     setLoading(true);
@@ -258,6 +260,29 @@ export default function ServicesClient() {
     }
   }
 
+  async function handleDelete(service: ServiceItem) {
+    const confirmed = window.confirm(`Delete \"${service.name}\"? This action cannot be undone.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingServiceId(service.id);
+    try {
+      const res = await fetch(`/api/services/${service.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete service.");
+      toast.success("Service deleted.");
+      await fetchServices();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete service.");
+    } finally {
+      setDeletingServiceId(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header row */}
@@ -309,12 +334,23 @@ export default function ServicesClient() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => openEdit(service)}
-                className="shrink-0 rounded-lg border border-cav-medium-gray/50 bg-cav-medium-gray px-4 py-2 text-xs font-mono font-medium text-cav-light-gray transition hover:bg-cav-medium-gray/40"
-              >
-                Edit
-              </button>
+              <div className="shrink-0 flex items-center gap-2">
+                <button
+                  onClick={() => openEdit(service)}
+                  className="rounded-lg border border-cav-medium-gray/50 bg-cav-medium-gray px-4 py-2 text-xs font-mono font-medium text-cav-light-gray transition hover:bg-cav-medium-gray/40"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(service)}
+                  disabled={deletingServiceId === service.id}
+                  aria-label={`Delete ${service.name}`}
+                  className="rounded-lg bg-red-500/5 p-2 text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>

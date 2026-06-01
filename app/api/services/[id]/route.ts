@@ -71,3 +71,26 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+
+    if (!isValidObjectId(id)) {
+      return Response.json({ error: "Invalid service ID." }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    const deleted = await Service.findByIdAndDelete(id).lean();
+
+    if (!deleted) {
+      return Response.json({ error: "Service not found." }, { status: 404 });
+    }
+
+    return Response.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete service.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
