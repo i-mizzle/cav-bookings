@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_NAME } from "@/lib/auth/constants";
 import { hashPassword } from "@/lib/auth/password";
-import { getAdminSession } from "@/lib/auth/session";
 
 type SeedSummary = {
   adminEmail: string;
@@ -93,12 +92,6 @@ async function runAllSeeds(): Promise<SeedSummary> {
 export async function POST(request: Request) {
   if (process.env.SEED_ROUTE_ENABLED !== "true") {
     return NextResponse.json({ message: "Not found." }, { status: 404 });
-  }
-
-  const session = await getAdminSession();
-
-  if (!session) {
-    return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
   const requestToken =
